@@ -95,7 +95,8 @@ public class CassandraServer
         CassandraSession session = new CassandraSession(
                 JsonCodec.listJsonCodec(ExtraColumnMetadata.class),
                 cqlSessionBuilder::build,
-                new Duration(1, MINUTES));
+                new Duration(1, MINUTES),
+                false);
 
         try {
             checkConnectivity(session);
