@@ -64,7 +64,8 @@ public class TestCassandraClientConfig
                 .setKeystorePath(null)
                 .setKeystorePassword(null)
                 .setTruststorePath(null)
-                .setTruststorePassword(null));
+                .setTruststorePassword(null)
+                .setSkipPartitionCheck(false));
     }
 
     @Test
@@ -103,6 +104,7 @@ public class TestCassandraClientConfig
                 .put("cassandra.tls.keystore-password", "keystore-password")
                 .put("cassandra.tls.truststore-path", truststoreFile.toString())
                 .put("cassandra.tls.truststore-password", "truststore-password")
+                .put("cassandra.skip-partition-check", "true")
                 .buildOrThrow();
 
         CassandraClientConfig expected = new CassandraClientConfig()
@@ -133,7 +135,8 @@ public class TestCassandraClientConfig
                 .setKeystorePath(keystoreFile.toFile())
                 .setKeystorePassword("keystore-password")
                 .setTruststorePath(truststoreFile.toFile())
-                .setTruststorePassword("truststore-password");
+                .setTruststorePassword("truststore-password")
+                .setSkipPartitionCheck(true);
 
         assertFullMapping(properties, expected);
     }
