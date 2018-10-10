@@ -66,7 +66,8 @@ public class TestingScyllaServer
         session = new CassandraSession(
                 JsonCodec.listJsonCodec(ExtraColumnMetadata.class),
                 new ReopeningCluster(clusterBuilder::build),
-                new Duration(1, MINUTES));
+                new Duration(1, MINUTES),
+                false);
     }
 
     public CassandraSession getSession()

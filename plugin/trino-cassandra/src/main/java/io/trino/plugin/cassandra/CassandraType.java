@@ -456,6 +456,22 @@ public class CassandraType
         throw new IllegalStateException("Handling of type " + this + " is not implemented");
     }
 
+    public static String getColumnValueForCql(Object object, CassandraType cassandraType)
+    {
+        switch (cassandraType.getKind()) {
+            case ASCII:
+            case TEXT:
+            case VARCHAR:
+                return quoteStringLiteral(((Slice) object).toStringUtf8());
+            case INT:
+            case BIGINT:
+                return object.toString();
+            default:
+                throw new IllegalStateException("Handling of type " + cassandraType.kind.name()
+                        + " is not implemented");
+        }
+    }
+
     // TODO unify with getColumnValueForCql
     public String toCqlLiteral(Object trinoNativeValue)
     {
