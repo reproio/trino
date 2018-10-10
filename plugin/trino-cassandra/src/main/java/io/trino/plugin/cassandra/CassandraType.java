@@ -14,10 +14,12 @@
 package io.trino.plugin.cassandra;
 
 import com.google.common.collect.ImmutableList;
+import io.airlift.slice.Slice;
 import io.trino.spi.type.Type;
 
 import java.util.List;
 
+import static io.trino.plugin.cassandra.util.CassandraCqlUtils.quoteStringLiteral;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
@@ -76,6 +78,22 @@ public record CassandraType(Kind kind, Type trinoType, List<CassandraType> argum
     public static CassandraType primitiveType(Kind kind, Type trinoType)
     {
         return new CassandraType(kind, trinoType, ImmutableList.of());
+    }
+
+    public static String getColumnValueForCql(Object object, CassandraType cassandraType)
+    {
+        switch (cassandraType.getKind()) {
+            case ASCII:
+            case TEXT:
+            case VARCHAR:
+                return quoteStringLiteral(((Slice) object).toStringUtf8());
+            case INT:
+            case BIGINT:
+                return object.toString();
+            default:
+                throw new IllegalStateException("Handling of type " + cassandraType.kind.name()
+                        + " is not implemented");
+        }
     }
 
     @Override

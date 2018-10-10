@@ -190,7 +190,8 @@ public class CassandraClientModule
                     CassandraTelemetry cassandraTelemetry = CassandraTelemetry.create(openTelemetry);
                     return cassandraTelemetry.wrap(cqlSessionBuilder.build());
                 },
-                config.getNoHostAvailableRetryTimeout());
+                config.getNoHostAvailableRetryTimeout(),
+                config.isSkipPartitionCheck());
     }
 
     private static Optional<SSLContext> buildSslContext(
