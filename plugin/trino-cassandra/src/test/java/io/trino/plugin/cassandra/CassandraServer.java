@@ -104,7 +104,8 @@ public class CassandraServer
                 CASSANDRA_TYPE_MANAGER,
                 JsonCodec.listJsonCodec(ExtraColumnMetadata.class),
                 cqlSessionBuilder::build,
-                new Duration(1, MINUTES));
+                new Duration(1, MINUTES),
+                false);
     }
 
     private static String prepareCassandraYaml(String fileName)
