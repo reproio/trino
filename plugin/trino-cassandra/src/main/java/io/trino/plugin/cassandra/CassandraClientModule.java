@@ -175,7 +175,8 @@ public class CassandraClientModule
                             createInetSocketAddress(contactPoint, config.getNativeProtocolPort())));
                     return cqlSessionBuilder.build();
                 },
-                config.getNoHostAvailableRetryTimeout());
+                config.getNoHostAvailableRetryTimeout(),
+                config.isSkipPartitionCheck());
     }
 
     private static Optional<SSLContext> buildSslContext(
