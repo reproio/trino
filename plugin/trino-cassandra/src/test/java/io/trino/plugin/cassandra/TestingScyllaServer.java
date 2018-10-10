@@ -82,7 +82,8 @@ public class TestingScyllaServer
                 CASSANDRA_TYPE_MANAGER,
                 JsonCodec.listJsonCodec(ExtraColumnMetadata.class),
                 cqlSessionBuilder::build,
-                new Duration(1, MINUTES));
+                new Duration(1, MINUTES),
+                false);
     }
 
     public CassandraSession getSession()
