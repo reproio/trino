@@ -56,6 +56,7 @@ public class CassandraServer
 
     private final GenericContainer<?> dockerContainer;
     private final CassandraSession session;
+    private final ReopeningCluster cluster;
 
     public CassandraServer()
             throws Exception
@@ -84,7 +85,8 @@ public class CassandraServer
         CassandraSession session = new CassandraSession(
                 JsonCodec.listJsonCodec(ExtraColumnMetadata.class),
                 cluster,
-                new Duration(1, MINUTES));
+                new Duration(1, MINUTES),
+                false);
 
         try {
             checkConnectivity(session);
@@ -96,6 +98,7 @@ public class CassandraServer
         }
 
         this.session = session;
+        this.cluster = cluster;
     }
 
     private static String prepareCassandraYaml()
@@ -130,6 +133,11 @@ public class CassandraServer
     public int getPort()
     {
         return dockerContainer.getMappedPort(PORT);
+    }
+
+    public ReopeningCluster getCluster()
+    {
+        return cluster;
     }
 
     private static void checkConnectivity(CassandraSession session)
