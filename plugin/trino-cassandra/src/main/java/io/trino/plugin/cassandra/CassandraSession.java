@@ -480,7 +480,9 @@ public class CassandraSession
                 CassandraType cassandraType = columnHandle.getCassandraType();
 
                 switch (cassandraType.getKind()) {
+                    case ASCII:
                     case TEXT:
+                    case VARCHAR:
                         Slice slice = (Slice) value;
                         if (isComposite) {
                             buffer.putShort((short) slice.length());
