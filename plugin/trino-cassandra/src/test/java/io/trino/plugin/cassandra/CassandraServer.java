@@ -105,17 +105,6 @@ public class CassandraServer
                 cqlSessionBuilder::build,
                 new Duration(1, MINUTES),
                 false);
-
-        try {
-            checkConnectivity(session);
-        }
-        catch (RuntimeException e) {
-            session.close();
-            this.dockerContainer.stop();
-            throw e;
-        }
-
-        this.session = session;
     }
 
     private static String prepareCassandraYaml(String fileName)
