@@ -3,7 +3,7 @@ name: Build trino-cassandra
 on:
   push:
     branches:
-      - 'repro-*'
+      - "repro-*"
 
 env:
   # An envar that signals to tests we are executing in the CI environment
@@ -29,7 +29,7 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           distribution: corretto
-          java-version: 21
+          java-version: 22
       - name: Cache local Maven repository
         id: cache-maven
         uses: actions/cache@v4
