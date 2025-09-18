@@ -57,6 +57,8 @@ import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.SchemaNotFoundException;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.TableNotFoundException;
+import io.trino.spi.predicate.NullableValue;
+import io.trino.spi.predicate.TupleDomain;
 
 import java.io.Closeable;
 import java.nio.ByteBuffer;
