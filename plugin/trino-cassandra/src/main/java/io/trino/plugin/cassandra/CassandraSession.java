@@ -57,8 +57,6 @@ import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.SchemaNotFoundException;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.TableNotFoundException;
-import io.trino.spi.predicate.NullableValue;
-import io.trino.spi.predicate.TupleDomain;
 
 import java.io.Closeable;
 import java.nio.ByteBuffer;
@@ -483,7 +481,7 @@ public class CassandraSession
 
     private List<CassandraPartition> buildPartitionsFromFilterPrefixes(CassandraTable table, List<Set<Object>> filterPrefixes)
     {
-        List<CassandraColumnHandle> partitionKeyColumns = table.getPartitionKeyColumns();
+        List<CassandraColumnHandle> partitionKeyColumns = table.partitionKeyColumns();
 
         if (filterPrefixes.size() != partitionKeyColumns.size()) {
             return ImmutableList.of(CassandraPartition.UNPARTITIONED);
@@ -504,9 +502,9 @@ public class CassandraSession
             for (int i = 0; i < partitionKeyColumns.size(); i++) {
                 Object value = values.get(i);
                 CassandraColumnHandle columnHandle = partitionKeyColumns.get(i);
-                CassandraType cassandraType = columnHandle.getCassandraType();
+                CassandraType cassandraType = columnHandle.cassandraType();
 
-                switch (cassandraType.getKind()) {
+                switch (cassandraType.kind()) {
                     case ASCII:
                     case TEXT:
                     case VARCHAR:
@@ -545,11 +543,11 @@ public class CassandraSession
                         throw new IllegalStateException("Handling of type " + cassandraType + " is not implemented");
                 }
 
-                map.put(columnHandle, NullableValue.of(cassandraType.getTrinoType(), value));
+                map.put(columnHandle, NullableValue.of(cassandraType.trinoType(), value));
                 if (i > 0) {
                     stringBuilder.append(" AND ");
                 }
-                stringBuilder.append(CassandraCqlUtils.validColumnName(columnHandle.getName()));
+                stringBuilder.append(CassandraCqlUtils.validColumnName(columnHandle.name()));
                 stringBuilder.append(" = ");
                 stringBuilder.append(CassandraType.getColumnValueForCql(value, cassandraType));
             }

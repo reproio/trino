@@ -82,7 +82,7 @@ public record CassandraType(Kind kind, Type trinoType, List<CassandraType> argum
 
     public static String getColumnValueForCql(Object object, CassandraType cassandraType)
     {
-        switch (cassandraType.getKind()) {
+        switch (cassandraType.kind()) {
             case ASCII:
             case TEXT:
             case VARCHAR:

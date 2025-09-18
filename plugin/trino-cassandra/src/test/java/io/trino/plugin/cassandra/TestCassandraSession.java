@@ -37,7 +37,7 @@ import static io.trino.plugin.cassandra.CassandraTestingUtils.CASSANDRA_TYPE_MAN
 import static io.trino.plugin.cassandra.CassandraTestingUtils.createKeyspace;
 import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.MINUTES;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class TestCassandraSession
 {
@@ -68,7 +68,7 @@ public class TestCassandraSession
         ImmutableList<Set<Object>> partitionKeysList = buildSinglePartitionKeysList();
         List<CassandraPartition> partitions = nativeSession.getPartitions(table, partitionKeysList);
 
-        assertEquals(partitions.size(), EXISTING_PARTITION_COUNT);
+        assertThat(partitions.size()).isEqualTo(EXISTING_PARTITION_COUNT);
         session.execute(format("DROP TABLE %s.%s", KEYSPACE, tableName));
     }
 
@@ -82,7 +82,7 @@ public class TestCassandraSession
         ImmutableList<Set<Object>> partitionKeysList = buildSinglePartitionKeysList();
         List<CassandraPartition> partitions = nativeSession.getPartitions(table, partitionKeysList);
 
-        assertEquals(partitions.size(), FILTER_PARTITION_COUNT);
+        assertThat(partitions.size()).isEqualTo(FILTER_PARTITION_COUNT);
         session.execute(format("DROP TABLE %s.%s", KEYSPACE, tableName));
     }
 
@@ -96,7 +96,7 @@ public class TestCassandraSession
         ImmutableList<Set<Object>> partitionKeysList = buildMultiplePartitionKeysList();
         List<CassandraPartition> partitions = nativeSession.getPartitions(table, partitionKeysList);
 
-        assertEquals(partitions.size(), EXISTING_PARTITION_COUNT);
+        assertThat(partitions.size()).isEqualTo(EXISTING_PARTITION_COUNT);
         session.execute(format("DROP TABLE %s.%s", KEYSPACE, tableName));
     }
 
@@ -110,7 +110,7 @@ public class TestCassandraSession
         ImmutableList<Set<Object>> partitionKeysList = buildMultiplePartitionKeysList();
         List<CassandraPartition> partitions = nativeSession.getPartitions(table, partitionKeysList);
 
-        assertEquals(partitions.size(), FILTER_PARTITION_COUNT * FILTER_PARTITION_COUNT);
+        assertThat(partitions.size()).isEqualTo(FILTER_PARTITION_COUNT * FILTER_PARTITION_COUNT);
         session.execute(format("DROP TABLE %s.%s", KEYSPACE, tableName));
     }
 
