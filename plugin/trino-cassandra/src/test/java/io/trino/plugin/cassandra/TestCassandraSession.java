@@ -23,8 +23,9 @@ import com.google.common.collect.ImmutableSet;
 import io.airlift.json.JsonCodec;
 import io.airlift.slice.Slices;
 import io.airlift.units.Duration;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 
 import java.net.InetSocketAddress;
 import java.util.List;
@@ -37,9 +38,9 @@ import static io.trino.plugin.cassandra.CassandraTestingUtils.CASSANDRA_TYPE_MAN
 import static io.trino.plugin.cassandra.CassandraTestingUtils.createKeyspace;
 import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.MINUTES;
-import static org.testng.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-@Test(singleThreaded = true)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class TestCassandraSession
 {
     private static final String KEYSPACE = "test_native_cassandra_session_keyspace";
@@ -50,7 +51,7 @@ public class TestCassandraSession
     private CassandraServer server;
     private CassandraSession session;
 
-    @BeforeClass
+    @BeforeAll
     public void setUp()
             throws Exception
     {
