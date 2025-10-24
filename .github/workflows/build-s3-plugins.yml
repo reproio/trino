@@ -1,0 +1,85 @@
+name: Build S3-related plugins
+
+on:
+  push:
+    branches:
+      - 'repro-*'
+
+env:
+  # An envar that signals to tests we are executing in the CI environment
+  CONTINUOUS_INTEGRATION: true
+  MAVEN_OPTS: "-Xmx1024M -XX:+ExitOnOutOfMemoryError"
+  MAVEN_INSTALL_OPTS: "-Xmx2G -XX:+ExitOnOutOfMemoryError"
+  MAVEN_FAST_INSTALL: "-B -V --quiet -T 1C -DskipTests -Dair.check.skip-all -Dmaven.javadoc.skip=true"
+  MAVEN_TEST: "-B -Dair.check.skip-all -Dmaven.javadoc.skip=true -DLogTestDurationListener.enabled=true --fail-at-end"
+  RETRY: .github/bin/retry
+
+jobs:
+  build-s3-plugins:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ap-northeast-1
+          role-to-assume: ${{ vars.ROLE_TO_ASSUME }}
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: 21
+      - name: Cache local Maven repository
+        id: cache-maven
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-2-
+      - name: Populate maven cache
+        if: steps.cache-maven.outputs.cache-hit != 'true'
+        run: ./mvnw de.qaware.maven:go-offline-maven-plugin:resolve-dependencies
+      - name: Maven Install
+        run: |
+          export MAVEN_OPTS="${MAVEN_INSTALL_OPTS}"
+          ./mvnw install ${MAVEN_FAST_INSTALL} -am -pl lib/trino-hdfs,plugin/trino-hive,plugin/trino-delta-lake,plugin/trino-iceberg,plugin/trino-hudi
+      - name: Get Trino version
+        id: get-version
+        run: echo "VERSION=$(yq .project.version pom.xml)" >> $GITHUB_OUTPUT
+      - name: Upload trino-hdfs library to S3
+        run: |
+          trino_hdfs_jar=trino-hdfs-${{ steps.get-version.outputs.VERSION }}.jar
+          aws s3api put-object \
+            --bucket ${{ vars.DEPLOY_S3_BUCKET }} \
+            --key "${{ vars.DEPLOY_S3_KEY_PREFIX }}/${{ github.ref_name }}/${{ github.run_number }}/${trino_hdfs_jar}" \
+            --body "./lib/trino-hdfs/target/${trino_hdfs_jar}"
+      - name: Upload trino-hive plugin to S3
+        run: |
+          trino_hive_jar=trino-hive-${{ steps.get-version.outputs.VERSION }}.jar
+          aws s3api put-object \
+            --bucket ${{ vars.DEPLOY_S3_BUCKET }} \
+            --key "${{ vars.DEPLOY_S3_KEY_PREFIX }}/${{ github.ref_name }}/${{ github.run_number }}/${trino_hive_jar}" \
+            --body "./plugin/trino-hive/target/${trino_hive_jar}"
+      - name: Upload trino-delta-lake plugin to S3
+        run: |
+          trino_delta_lake_jar=trino-delta-lake-${{ steps.get-version.outputs.VERSION }}.jar
+          aws s3api put-object \
+            --bucket ${{ vars.DEPLOY_S3_BUCKET }} \
+            --key "${{ vars.DEPLOY_S3_KEY_PREFIX }}/${{ github.ref_name }}/${{ github.run_number }}/${trino_delta_lake_jar}" \
+            --body "./plugin/trino-delta-lake/target/${trino_delta_lake_jar}"
+      - name: Upload trino-iceberg plugin to S3
+        run: |
+          trino_iceberg_jar=trino-iceberg-${{ steps.get-version.outputs.VERSION }}.jar
+          aws s3api put-object \
+            --bucket ${{ vars.DEPLOY_S3_BUCKET }} \
+            --key "${{ vars.DEPLOY_S3_KEY_PREFIX }}/${{ github.ref_name }}/${{ github.run_number }}/${trino_iceberg_jar}" \
+            --body "./plugin/trino-iceberg/target/${trino_iceberg_jar}"
+      - name: Upload trino-hudi plugin to S3
+        run: |
+          trino_hudi_jar=trino-hudi-${{ steps.get-version.outputs.VERSION }}.jar
+          aws s3api put-object \
+            --bucket ${{ vars.DEPLOY_S3_BUCKET }} \
+            --key "${{ vars.DEPLOY_S3_KEY_PREFIX }}/${{ github.ref_name }}/${{ github.run_number }}/${trino_hudi_jar}" \
+            --body "./plugin/trino-hudi/target/${trino_hudi_jar}"
