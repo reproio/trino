@@ -15,10 +15,11 @@ package io.trino.hdfs.s3;
 
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 
-import static java.util.Objects.requireNonNull;
+import java.util.Optional;
 
 public enum TrinoS3AclType
 {
+    NONE(null),
     AUTHENTICATED_READ(CannedAccessControlList.AuthenticatedRead),
     AWS_EXEC_READ(CannedAccessControlList.AwsExecRead),
     BUCKET_OWNER_FULL_CONTROL(CannedAccessControlList.BucketOwnerFullControl),
@@ -32,11 +33,11 @@ public enum TrinoS3AclType
 
     TrinoS3AclType(CannedAccessControlList cannedACL)
     {
-        this.cannedACL = requireNonNull(cannedACL, "cannedACL is null");
+        this.cannedACL = cannedACL;
     }
 
-    CannedAccessControlList getCannedACL()
+    Optional<CannedAccessControlList> getCannedACL()
     {
-        return cannedACL;
+        return Optional.ofNullable(cannedACL);
     }
 }

@@ -1257,7 +1257,7 @@ public class TrinoS3FileSystem
                     break;
             }
         }
-        request.setCannedAcl(s3AclType.getCannedACL());
+        s3AclType.getCannedACL().ifPresent(request::setCannedAcl);
         request.setRequesterPays(requesterPaysEnabled);
         request.setStorageClass(s3StorageClass.getS3StorageClass());
     }
@@ -1274,9 +1274,10 @@ public class TrinoS3FileSystem
                         try {
                             InitiateMultipartUploadRequest request = new InitiateMultipartUploadRequest(bucket, key)
                                     .withObjectMetadata(new ObjectMetadata())
-                                    .withCannedACL(s3AclType.getCannedACL())
                                     .withRequesterPays(requesterPaysEnabled)
                                     .withStorageClass(s3StorageClass.getS3StorageClass());
+
+                            s3AclType.getCannedACL().ifPresent(request::withCannedACL);
 
                             if (sseEnabled) {
                                 switch (sseType) {
