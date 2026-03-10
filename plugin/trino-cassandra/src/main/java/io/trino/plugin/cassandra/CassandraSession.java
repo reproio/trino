@@ -48,6 +48,7 @@ import com.google.common.collect.Sets;
 import com.google.errorprone.annotations.concurrent.GuardedBy;
 import io.airlift.json.JsonCodec;
 import io.airlift.log.Logger;
+import io.airlift.slice.Slice;
 import io.airlift.units.Duration;
 import io.trino.plugin.cassandra.util.CassandraCqlUtils;
 import io.trino.spi.TrinoException;
@@ -85,6 +86,7 @@ import static io.trino.plugin.cassandra.util.CassandraCqlUtils.selectDistinctFro
 import static io.trino.plugin.cassandra.util.CassandraCqlUtils.validSchemaName;
 import static io.trino.plugin.cassandra.util.CassandraCqlUtils.validTableName;
 import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
+import static java.lang.Math.toIntExact;
 import static java.lang.String.format;
 import static java.util.Comparator.comparing;
 import static java.util.Locale.ENGLISH;
@@ -386,23 +388,13 @@ public class CassandraSession
         return Optional.of(new CassandraColumnHandle(columnMeta.getName().asInternal(), ordinalPosition, cassandraType.get(), partitionKey, clusteringKey, indexed, hidden));
     }
 
-    /**
-     * Get the list of partitions matching the given filters on partition keys.
-     *
-     * @param table the table to get partitions from
-     * @param filterPrefixes the list of possible values for each partition key.
-     * Order of values should match {@link CassandraTable#partitionKeyColumns()}
-     * @return list of {@link CassandraPartition}
-     */
-    public List<CassandraPartition> getPartitions(CassandraTable table, List<Set<Object>> filterPrefixes)
+    private List<CassandraPartition> buildPartitionsFromFilterPrefixes(CassandraTable table, List<Set<Object>> filterPrefixes)
     {
         List<CassandraColumnHandle> partitionKeyColumns = table.partitionKeyColumns();
 
         if (filterPrefixes.size() != partitionKeyColumns.size()) {
             return ImmutableList.of(CassandraPartition.UNPARTITIONED);
         }
-
-        Iterable<Row> rows = queryPartitionKeysLegacyWithMultipleQueries(table, filterPrefixes);
 
         ByteBuffer buffer = ByteBuffer.allocate(1000);
         HashMap<ColumnHandle, NullableValue> map = new HashMap<>();
@@ -412,31 +404,61 @@ public class CassandraSession
         boolean isComposite = partitionKeyColumns.size() > 1;
 
         ImmutableList.Builder<CassandraPartition> partitions = ImmutableList.builder();
-        for (Row row : rows) {
+        for (List<Object> values : Sets.cartesianProduct(filterPrefixes)) {
             buffer.clear();
             map.clear();
             stringBuilder.setLength(0);
             for (int i = 0; i < partitionKeyColumns.size(); i++) {
-                ByteBuffer component = row.getBytesUnsafe(i).duplicate();
-                if (isComposite) {
-                    // build composite key
-                    short len = (short) component.limit();
-                    buffer.putShort(len);
-                    buffer.put(component);
-                    buffer.put((byte) 0);
-                }
-                else {
-                    buffer.put(component);
-                }
+                Object value = values.get(i);
                 CassandraColumnHandle columnHandle = partitionKeyColumns.get(i);
-                NullableValue keyPart = cassandraTypeManager.getColumnValue(columnHandle.cassandraType(), row, i);
-                map.put(columnHandle, keyPart);
+                CassandraType cassandraType = columnHandle.cassandraType();
+
+                switch (cassandraType.kind()) {
+                    case ASCII:
+                    case TEXT:
+                    case VARCHAR:
+                        Slice slice = (Slice) value;
+                        if (isComposite) {
+                            buffer.putShort((short) slice.length());
+                            buffer.put(slice.getBytes());
+                            buffer.put((byte) 0);
+                        }
+                        else {
+                            buffer.put(slice.getBytes());
+                        }
+                        break;
+                    case INT:
+                        int intValue = toIntExact((long) value);
+                        if (isComposite) {
+                            buffer.putShort((short) Integer.BYTES);
+                            buffer.putInt(intValue);
+                            buffer.put((byte) 0);
+                        }
+                        else {
+                            buffer.putInt(intValue);
+                        }
+                        break;
+                    case BIGINT:
+                        if (isComposite) {
+                            buffer.putShort((short) Long.BYTES);
+                            buffer.putLong((long) value);
+                            buffer.put((byte) 0);
+                        }
+                        else {
+                            buffer.putLong((long) value);
+                        }
+                        break;
+                    default:
+                        throw new IllegalStateException("Handling of type " + cassandraType + " is not implemented");
+                }
+
+                map.put(columnHandle, NullableValue.of(cassandraType.trinoType(), value));
                 if (i > 0) {
                     stringBuilder.append(" AND ");
                 }
                 stringBuilder.append(CassandraCqlUtils.validColumnName(columnHandle.name()));
                 stringBuilder.append(" = ");
-                stringBuilder.append(cassandraTypeManager.getColumnValueForCql(columnHandle.cassandraType(), row, i));
+                stringBuilder.append(CassandraType.getColumnValueForCql(value, cassandraType));
             }
             buffer.flip();
             byte[] key = new byte[buffer.limit()];
@@ -448,6 +470,71 @@ public class CassandraSession
             }
         }
         return partitions.build();
+    }
+
+    /**
+     * Get the list of partitions matching the given filters on partition keys.
+     *
+     * @param table the table to get partitions from
+     * @param filterPrefixes the list of possible values for each partition key.
+     * Order of values should match {@link CassandraTable#partitionKeyColumns()}
+     * @return list of {@link CassandraPartition}
+     */
+    public List<CassandraPartition> getPartitions(CassandraTable table, List<Set<Object>> filterPrefixes)
+    {
+        return buildPartitionsFromFilterPrefixes(table, filterPrefixes);
+//        List<CassandraColumnHandle> partitionKeyColumns = table.partitionKeyColumns();
+//
+//        if (filterPrefixes.size() != partitionKeyColumns.size()) {
+//            return ImmutableList.of(CassandraPartition.UNPARTITIONED);
+//        }
+//
+//        Iterable<Row> rows = queryPartitionKeysLegacyWithMultipleQueries(table, filterPrefixes);
+//
+//        ByteBuffer buffer = ByteBuffer.allocate(1000);
+//        HashMap<ColumnHandle, NullableValue> map = new HashMap<>();
+//        Set<String> uniquePartitionIds = new HashSet<>();
+//        StringBuilder stringBuilder = new StringBuilder();
+//
+//        boolean isComposite = partitionKeyColumns.size() > 1;
+//
+//        ImmutableList.Builder<CassandraPartition> partitions = ImmutableList.builder();
+//        for (Row row : rows) {
+//            buffer.clear();
+//            map.clear();
+//            stringBuilder.setLength(0);
+//            for (int i = 0; i < partitionKeyColumns.size(); i++) {
+//                ByteBuffer component = row.getBytesUnsafe(i).duplicate();
+//                if (isComposite) {
+//                    // build composite key
+//                    short len = (short) component.limit();
+//                    buffer.putShort(len);
+//                    buffer.put(component);
+//                    buffer.put((byte) 0);
+//                }
+//                else {
+//                    buffer.put(component);
+//                }
+//                CassandraColumnHandle columnHandle = partitionKeyColumns.get(i);
+//                NullableValue keyPart = cassandraTypeManager.getColumnValue(columnHandle.cassandraType(), row, i);
+//                map.put(columnHandle, keyPart);
+//                if (i > 0) {
+//                    stringBuilder.append(" AND ");
+//                }
+//                stringBuilder.append(CassandraCqlUtils.validColumnName(columnHandle.name()));
+//                stringBuilder.append(" = ");
+//                stringBuilder.append(cassandraTypeManager.getColumnValueForCql(columnHandle.cassandraType(), row, i));
+//            }
+//            buffer.flip();
+//            byte[] key = new byte[buffer.limit()];
+//            buffer.get(key);
+//            TupleDomain<ColumnHandle> tupleDomain = TupleDomain.fromFixedValues(map);
+//            String partitionId = stringBuilder.toString();
+//            if (uniquePartitionIds.add(partitionId)) {
+//                partitions.add(new CassandraPartition(key, partitionId, tupleDomain, false));
+//            }
+//        }
+//        return partitions.build();
     }
 
     public ResultSet execute(String cql)
