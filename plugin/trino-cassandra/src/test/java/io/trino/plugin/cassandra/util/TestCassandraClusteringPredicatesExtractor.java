@@ -22,7 +22,9 @@ import io.trino.plugin.cassandra.CassandraTable;
 import io.trino.plugin.cassandra.CassandraTypes;
 import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.predicate.Domain;
+import io.trino.spi.predicate.Range;
 import io.trino.spi.predicate.TupleDomain;
+import io.trino.spi.predicate.ValueSet;
 import org.junit.jupiter.api.Test;
 
 import static io.trino.plugin.cassandra.CassandraTestingUtils.CASSANDRA_TYPE_MANAGER;
@@ -70,5 +72,19 @@ public class TestCassandraClusteringPredicatesExtractor
         CassandraClusteringPredicatesExtractor predicatesExtractor = new CassandraClusteringPredicatesExtractor(CASSANDRA_TYPE_MANAGER, cassandraTable.clusteringKeyColumns(), tupleDomain);
         TupleDomain<ColumnHandle> unenforcedPredicates = TupleDomain.withColumnDomains(ImmutableMap.of(col4, Domain.singleValue(BIGINT, 26L)));
         assertThat(predicatesExtractor.getUnenforcedConstraints()).isEqualTo(unenforcedPredicates);
+    }
+
+    @Test
+    public void testClusteringPredicateWithMixedRangesAndSingleValues()
+    {
+        // A range [1,3] plus a discrete value 5
+        TupleDomain<ColumnHandle> tupleDomain = TupleDomain.withColumnDomains(
+                ImmutableMap.of(
+                        col2, Domain.create(ValueSet.ofRanges(
+                                Range.range(BIGINT, 1L, true, 3L, true),
+                                Range.equal(BIGINT, 5L)), false)));
+        CassandraClusteringPredicatesExtractor predicatesExtractor = new CassandraClusteringPredicatesExtractor(CASSANDRA_TYPE_MANAGER, cassandraTable.clusteringKeyColumns(), tupleDomain);
+        String predicate = predicatesExtractor.getClusteringKeyPredicates();
+        assertThat(predicate).isEqualTo("\"clusteringKey1\" IN (1,2,3,5)");
     }
 }

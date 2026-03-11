@@ -66,6 +66,11 @@ public record CassandraType(Kind kind, Type trinoType, List<CassandraType> argum
         {
             return supportedPartitionKey;
         }
+
+        public boolean isDiscreteInteger()
+        {
+            return this == INT || this == BIGINT;
+        }
     }
 
     public CassandraType

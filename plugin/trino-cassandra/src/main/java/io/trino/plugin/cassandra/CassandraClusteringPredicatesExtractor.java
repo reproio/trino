@@ -23,9 +23,11 @@ import io.trino.spi.predicate.Range;
 import io.trino.spi.predicate.TupleDomain;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
+import static io.trino.plugin.cassandra.CassandraPartitionManager.expandDiscreteRange;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
@@ -75,6 +77,30 @@ public class CassandraClusteringPredicatesExtractor
                         if (ranges.getOrderedRanges().stream().allMatch(Range::isSingleValue)) {
                             String inValues = ranges.getOrderedRanges().stream()
                                     .map(range -> toCqlLiteral(columnHandle, range.getSingleValue()))
+                                    .collect(joining(","));
+                            fullyPushedColumnPredicates.add(columnHandle);
+                            return CassandraCqlUtils.validColumnName(columnHandle.name()) + " IN (" + inValues + ")";
+                        }
+                        // The optimizer may convert consecutive IN values into a BETWEEN range.
+                        // Try to expand bounded integer ranges back into discrete values for IN clause.
+                        ImmutableList.Builder<Object> allValues = ImmutableList.builder();
+                        boolean canExpand = true;
+                        for (Range range : ranges.getOrderedRanges()) {
+                            if (range.isSingleValue()) {
+                                allValues.add(range.getSingleValue());
+                            }
+                            else {
+                                Optional<Set<Object>> expanded = expandDiscreteRange(range, columnHandle.cassandraType().kind());
+                                if (expanded.isEmpty()) {
+                                    canExpand = false;
+                                    break;
+                                }
+                                allValues.addAll(expanded.get());
+                            }
+                        }
+                        if (canExpand) {
+                            String inValues = allValues.build().stream()
+                                    .map(value -> toCqlLiteral(columnHandle, value))
                                     .collect(joining(","));
                             fullyPushedColumnPredicates.add(columnHandle);
                             return CassandraCqlUtils.validColumnName(columnHandle.name()) + " IN (" + inValues + ")";

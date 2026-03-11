@@ -42,6 +42,7 @@ import static java.util.stream.Collectors.toList;
 public class CassandraPartitionManager
 {
     private static final Logger log = Logger.get(CassandraPartitionManager.class);
+    private static final long MAX_PARTITION_VALUES_FROM_RANGE = 1000;
 
     private final CassandraSession cassandraSession;
     private final CassandraTypeManager cassandraTypeManager;
@@ -153,15 +154,23 @@ public class CassandraPartitionManager
                     ranges -> {
                         ImmutableSet.Builder<Object> columnValues = ImmutableSet.builder();
                         for (Range range : ranges.getOrderedRanges()) {
-                            // if the range is not a single value, we cannot perform partition pruning
-                            if (!range.isSingleValue()) {
-                                return ImmutableSet.of();
+                            CassandraType.Kind kind = columnHandle.cassandraType().kind();
+                            if (!kind.isSupportedPartitionKey()) {
+                                continue;
                             }
-                            Object value = range.getSingleValue();
 
-                            CassandraType valueType = columnHandle.cassandraType();
-                            if (valueType.kind().isSupportedPartitionKey()) {
-                                columnValues.add(value);
+                            if (range.isSingleValue()) {
+                                columnValues.add(range.getSingleValue());
+                            }
+                            else {
+                                // The optimizer may convert consecutive IN values into a BETWEEN range
+                                // (e.g. IN(1,2,3) -> BETWEEN 1 AND 3). Expand bounded integer ranges
+                                // back into discrete values for partition pruning.
+                                Optional<Set<Object>> expanded = expandDiscreteRange(range, kind);
+                                if (expanded.isEmpty()) {
+                                    return ImmutableSet.of();
+                                }
+                                columnValues.addAll(expanded.get());
                             }
                         }
                         return columnValues.build();
@@ -176,5 +185,33 @@ public class CassandraPartitionManager
             partitionColumnValues.add(values);
         }
         return partitionColumnValues.build();
+    }
+
+    static Optional<Set<Object>> expandDiscreteRange(Range range, CassandraType.Kind kind)
+    {
+        if (!kind.isDiscreteInteger()) {
+            return Optional.empty();
+        }
+        if (range.isLowUnbounded() || range.isHighUnbounded()) {
+            return Optional.empty();
+        }
+
+        long low = (long) range.getLowBoundedValue();
+        long high = (long) range.getHighBoundedValue();
+        if (!range.isLowInclusive()) {
+            low++;
+        }
+        if (!range.isHighInclusive()) {
+            high--;
+        }
+        if (low > high || (high - low + 1) > MAX_PARTITION_VALUES_FROM_RANGE) {
+            return Optional.empty();
+        }
+
+        ImmutableSet.Builder<Object> values = ImmutableSet.builder();
+        for (long v = low; v <= high; v++) {
+            values.add(v);
+        }
+        return Optional.of(values.build());
     }
 }
